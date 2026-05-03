@@ -1,21 +1,127 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
-    <title>LiGA大会管理ツール</title>
+    <meta charset="UTF-8">
+    <title>顧客管理アプリ</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
-    <h1>LiGA大会管理ツール</h1>
 
-    <form method="POST">
-        <input type="text" name="name" placeholder="名前">
-        <button type="submit">登録</button>
-    </form>
+<div class="container mt-5">
+    <h1 class="mb-4">顧客管理アプリ</h1>
 
-    <h2>顧客リスト</h2>
-    <ul>
-        {% for customer in customers %}
-            <li>{{ customer }}</li>
-        {% endfor %}
-    </ul>
+    <div id="message" class="alert d-none"></div>
+
+    <div class="input-group mb-3">
+        <input type="text" id="nameInput" class="form-control" placeholder="名前を入力">
+        <button class="btn btn-primary" onclick="addCustomer()">登録</button>
+    </div>
+
+    <div class="input-group mb-4">
+        <input type="text" id="keywordInput" class="form-control" placeholder="名前で検索">
+        <button class="btn btn-secondary" onclick="loadCustomers()">検索</button>
+    </div>
+
+    <ul id="customerList" class="list-group"></ul>
+</div>
+
+<script>
+async function loadCustomers() {
+    const keyword = document.getElementById("keywordInput").value;
+
+    const response = await fetch(`/customers?keyword=${keyword}`);
+    const customers = await response.json();
+
+    const customerList = document.getElementById("customerList");
+    customerList.innerHTML = "";
+
+    customers.forEach(customer => {
+        const li = document.createElement("li");
+        li.className = "list-group-item d-flex justify-content-between align-items-center";
+
+        li.innerHTML = `
+            <span>${customer.name}</span>
+
+            <div class="d-flex gap-2">
+                <input type="text" id="edit-${customer.id}" class="form-control form-control-sm" placeholder="新しい名前">
+                <button class="btn btn-warning btn-sm" onclick="updateCustomer(${customer.id})">更新</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteCustomer(${customer.id})">削除</button>
+            </div>
+        `;
+
+        customerList.appendChild(li);
+    });
+}
+
+async function addCustomer() {
+    const name = document.getElementById("nameInput").value;
+
+    if (!name) {
+        showMessage("名前を入力してください", "danger");
+        return;
+    }
+
+    await fetch("/customers", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ name: name })
+    });
+
+    document.getElementById("nameInput").value = "";
+    showMessage("登録しました！", "success");
+    loadCustomers();
+}
+
+async function updateCustomer(id) {
+    const newName = document.getElementById(`edit-${id}`).value;
+
+    if (!newName) {
+        showMessage("新しい名前を入力してください", "danger");
+        return;
+    }
+
+    await fetch(`/customers/${id}`, {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ name: newName })
+    });
+
+    showMessage("更新しました！", "warning");
+    loadCustomers();
+}
+
+async function deleteCustomer(id) {
+    const isConfirmed = confirm("本当に削除しますか？");
+
+    if (!isConfirmed) {
+        return;
+    }
+
+    await fetch(`/customers/${id}`, {
+        method: "DELETE"
+    });
+
+    showMessage("削除しました！", "danger");
+    loadCustomers();
+}
+
+function showMessage(text, type) {
+    const message = document.getElementById("message");
+
+    message.textContent = text;
+    message.className = `alert alert-${type}`;
+
+    setTimeout(() => {
+        message.className = "alert d-none";
+    }, 2000);
+}
+
+window.onload = loadCustomers;
+</script>
+
 </body>
 </html>
