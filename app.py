@@ -1,7 +1,8 @@
-from flask import Flask, request
+from flask import Flask, render_template, request, redirect
 
 app = Flask(__name__)
 
+# 顧客読み込み
 def load_customers():
     customers = []
     try:
@@ -14,35 +15,23 @@ def load_customers():
         pass
     return customers
 
+# 顧客保存
 def save_customer(name):
     with open("customers.txt", "a", encoding="utf-8") as file:
         file.write(name + "\n")
 
+# メイン画面
 @app.route("/", methods=["GET", "POST"])
-def home():
+def index():
     if request.method == "POST":
-        name = request.form["name"]
-        if name != "":
+        name = request.form.get("name")
+        if name:
             save_customer(name)
+        return redirect("/")
 
     customers = load_customers()
+    return render_template("index.html", customers=customers)
 
-    customer_list = ""
-    for customer in customers:
-        customer_list += f"<li>{customer}</li>"
-
-    return f"""
-    <h1>LiGA大会管理ツール</h1>
-    <form method="POST">
-        名前: <input type="text" name="name">
-        <input type="submit" value="登録">
-    </form>
-
-    <h2>顧客リスト</h2>
-    <ul>
-        {customer_list}
-    </ul>
-    """
 
 if __name__ == "__main__":
     app.run(debug=True)
