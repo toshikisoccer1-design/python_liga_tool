@@ -1,37 +1,128 @@
-from flask import Flask, render_template, request, redirect
+from flask import Flask, request, render_template, jsonify
+import sqlite3
+import os
 
 app = Flask(__name__)
 
-# 顧客読み込み
-def load_customers():
-    customers = []
-    try:
-        with open("customers.txt", "r", encoding="utf-8") as file:
-            for line in file:
-                name = line.strip()
-                if name != "":
-                    customers.append(name)
-    except FileNotFoundError:
-        pass
+DB_NAME = "customers.db"
+
+
+def init_db():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS customers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL
+        )
+    """)
+
+    conn.commit()
+    conn.close()
+
+
+def get_customers(keyword=""):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+
+    if keyword:
+        cursor.execute(
+            "SELECT id, name FROM customers WHERE name LIKE ?",
+            ("%" + keyword + "%",)
+        )
+    else:
+        cursor.execute("SELECT id, name FROM customers")
+
+    customers = cursor.fetchall()
+    conn.close()
+
     return customers
 
-# 顧客保存
-def save_customer(name):
-    with open("customers.txt", "a", encoding="utf-8") as file:
-        file.write(name + "\n")
 
-# メイン画面
-@app.route("/", methods=["GET", "POST"])
-def index():
-    if request.method == "POST":
-        name = request.form.get("name")
-        if name:
-            save_customer(name)
-        return redirect("/")
+def add_customer(name):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
 
-    customers = load_customers()
-    return render_template("index.html", customers=customers)
+    cursor.execute("INSERT INTO customers (name) VALUES (?)", (name,))
+
+    conn.commit()
+    conn.close()
+
+
+def update_customer(customer_id, new_name):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "UPDATE customers SET name = ? WHERE id = ?",
+        (new_name, customer_id)
+    )
+
+    conn.commit()
+    conn.close()
+
+
+def delete_customer(customer_id):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+
+    cursor.execute("DELETE FROM customers WHERE id = ?", (customer_id,))
+
+    conn.commit()
+    conn.close()
+
+
+@app.route("/")
+def home():
+    return render_template("index.html")
+
+
+@app.route("/customers", methods=["GET"])
+def customers_api():
+    keyword = request.args.get("keyword", "")
+    data = get_customers(keyword)
+
+    result = []
+    for customer in data:
+        result.append({
+            "id": customer[0],
+            "name": customer[1]
+        })
+
+    return jsonify(result)
+
+
+@app.route("/customers", methods=["POST"])
+def add_customer_api():
+    data = request.get_json()
+    name = data.get("name")
+
+    if name:
+        add_customer(name)
+
+    return jsonify({"status": "ok"})
+
+
+@app.route("/customers/<int:id>", methods=["PUT"])
+def update_customer_api(id):
+    data = request.get_json()
+    new_name = data.get("name")
+
+    if new_name:
+        update_customer(id, new_name)
+
+    return jsonify({"status": "ok"})
+
+
+@app.route("/customers/<int:id>", methods=["DELETE"])
+def delete_customer_api(id):
+    delete_customer(id)
+
+    return jsonify({"status": "ok"})
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    init_db()
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
